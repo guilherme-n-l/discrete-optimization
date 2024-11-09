@@ -17,27 +17,26 @@ void getItems(unsigned long nItems, item_t *items) {
 }
 
 char chooseBringing(unsigned long idx, unsigned long jdx, long *oldRow, item_t item) {
-    long diagJdx = jdx + 1 - item.weight;
+    long diagJdx = jdx - (1 + item.weight);
 
     if (idx != 0) {
         long upVal = oldRow[jdx];
 
-        if (diagJdx >= 0) {
-            return upVal < (item.value + oldRow[diagJdx]);
+        if (diagJdx >= -1) {
+            return upVal < item.value + (diagJdx >= 0 ? oldRow[diagJdx] : 0);
         }
 
         return 0;
     }
 
-    return diagJdx >= 0;
+    return diagJdx >= -1;
 }
 
 long updatedValue(char bring, unsigned long idx, unsigned long jdx, long *oldRow, item_t item) {
-    unsigned long diagJdx = jdx + 1 - item.weight;
+    long diagJdx = jdx - (1 + item.weight);
 
     if (idx != 0) {
-        printf("up %ld ", oldRow[jdx]);
-        return bring ? (item.value + oldRow[diagJdx]) : oldRow[jdx];
+        return bring ? (item.value + (diagJdx >= 0 ? oldRow[diagJdx] : 0)) : oldRow[jdx];
     }
 
     return bring ? item.value : 0;
@@ -62,8 +61,9 @@ void getIndices(unsigned long idx, unsigned long jdx, char **table, item_t *item
 
 void printResults(unsigned long nItems, unsigned char *arr) {
     for (long i = 0; i < nItems; i++) {
-        printf(i + 1 == nItems ? "%d\n" : "%d ", arr[i]);
+        printf(i + 1 == nItems ? "%d" : "%d ", arr[i]);
     }
+    printf("\n");
 }
 
 int main() {
@@ -84,12 +84,12 @@ int main() {
 
         for (long j = 0; j < cap; j++) {
             char brought = chooseBringing(i, j, oldRow, it);
+
             table[i][j] = brought ? (i == 0 ? 1 : !table[i - 1][j]) : (i == 0 ? 0 : table[i - 1][j]);
+
             row[j] = updatedValue(brought, i, j, oldRow, it);
-            printf("%d ", table[i][j]);
         }
         swapRows(&oldRow, &row);
-        printf("\n");
     }
 
     printf("%ld 0\n", oldRow[cap - 1]);
