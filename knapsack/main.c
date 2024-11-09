@@ -17,7 +17,7 @@ void getItems(unsigned long nItems, item_t *items) {
 }
 
 char chooseBringing(unsigned long idx, unsigned long jdx, long *oldRow, item_t item) {
-    long diagJdx = jdx - (1 + item.weight);
+    long diagJdx = jdx - item.weight;
 
     if (idx != 0) {
         long upVal = oldRow[jdx];
@@ -33,7 +33,7 @@ char chooseBringing(unsigned long idx, unsigned long jdx, long *oldRow, item_t i
 }
 
 long updatedValue(char bring, unsigned long idx, unsigned long jdx, long *oldRow, item_t item) {
-    long diagJdx = jdx - (1 + item.weight);
+    long diagJdx = jdx - item.weight;
 
     if (idx != 0) {
         return bring ? (item.value + (diagJdx >= 0 ? oldRow[diagJdx] : 0)) : oldRow[jdx];
