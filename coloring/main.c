@@ -5,8 +5,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#define POPULATION_SIZE 150
-#define N_GENERATIONS 10
+#define POPULATION_SIZE 300
+#define N_GENERATIONS 7
 #define MUTATION_RATE 0.1
 
 typedef struct {
@@ -262,7 +262,7 @@ void partitionSelection(int *population[POPULATION_SIZE], int scores[POPULATION_
 void swapPositions(int idx, int jdx, int* arr) {
     int tmp = arr[idx];
     arr[idx] = arr[jdx];
-    arr[jdx] = arr[tmp];
+    arr[jdx] = tmp;
 }
 
 void removeDupesInArray(int n, int* arr) {
@@ -341,9 +341,10 @@ void weakerSelection(int selected[2], int losers[2]) {
         range[rangeLen++] = i;
     }
 
-    losers[0] = range[rand() % rangeLen];
+    int loserIdx = rand() % rangeLen;
+    losers[0] = range[loserIdx];
 
-    swapPositions(losers[0], rangeLen - 1, range);
+    swapPositions(loserIdx, rangeLen - 1, range);
 
     losers[1] = range[rand() % (rangeLen - 1)];
 
