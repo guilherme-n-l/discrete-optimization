@@ -3,8 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
-#define POPULATION_SIZE 10
+#define POPULATION_SIZE 150
 #define N_GENERATIONS 10
 #define MUTATION_RATE 0.1
 
@@ -84,6 +85,15 @@ void collectNeighs(int n, int e, int (*st)[2], GHashTable* ht) {
 //     }
 //     printf("} (len=%d)\n", pNode->nNeighs);
 // }
+void printIntArray(int n, int* arr) {
+    printf("[ ");
+    for (int i = 0; i < n; i++) {
+        printf("%d ", arr[i]);
+    }
+    printf("]\n");
+}
+
+
 
 void getInput(int n, int e, GHashTable* ht) {
     int (*st)[2] = malloc(e * sizeof(*st));
@@ -218,7 +228,7 @@ void partitionSelection(int *population[POPULATION_SIZE], int scores[POPULATION_
             if (iSelected == 1 && selected[0] == i) {
                 continue;
             }
-            float score = scores[i] == 0 ? 0.5 : scores[i];
+            float score = scores[i] == 0 ? 0.1 : scores[i];
             sum += (float)1 / (score);
         }
 
@@ -227,11 +237,16 @@ void partitionSelection(int *population[POPULATION_SIZE], int scores[POPULATION_
         int j = 0;
         for (int i = 0; i < POPULATION_SIZE; i++) {
             if (iSelected == 1 && selected[0] == i) {
+                partitions[j++] = collector2;
                 continue;
             }
-            float score = scores[i] == 0 ? 0.5 : scores[i];
+            float score = scores[i] == 0 ? 0.1 : scores[i];
             partitions[j++] = (((float)1 / score / sum)) + collector2;
             collector2 += (((float)1 / score) / sum);
+        }
+
+        if (iSelected == 1 && selected[0] == 0) {
+            partitions[0] = -1;
         }
 
         float chosen = (float)rand()/RAND_MAX;
@@ -240,7 +255,7 @@ void partitionSelection(int *population[POPULATION_SIZE], int scores[POPULATION_
             i++;
         };
 
-        selected[iSelected] = iSelected == 0 || (iSelected == 1 && i < selected[0]) ? i : i + 1;
+        selected[iSelected] = i;
     }
 }
 
@@ -250,11 +265,57 @@ void swapPositions(int idx, int jdx, int* arr) {
     arr[jdx] = arr[tmp];
 }
 
+void removeDupesInArray(int n, int* arr) {
+    int *freq = calloc(n, sizeof(int));
+    int *idxs = malloc(n * sizeof(int));
+    int *missing = malloc(n * sizeof(int));
+
+    int nDuplicates = 0;
+    for (int i = 0; i < n; i++) {
+        if (freq[arr[i]] > 0) {
+            idxs[nDuplicates++] = i;
+        }
+
+        freq[arr[i]]++;
+    }
+
+    if (nDuplicates == 0) {
+        free(freq);
+        free(idxs);
+        free(missing);
+        return;
+    }
+
+    int control = nDuplicates;
+    nDuplicates = 0;
+    for (int i = 0; i < n; i++) {
+        if (freq[i] == 0) {
+            missing[nDuplicates++] = i;
+        }
+    }
+
+    if (control != nDuplicates) {
+        printf("uai %d %d\n", control, nDuplicates);
+        printIntArray(n, arr);
+        printIntArray(n, freq);
+    }
+
+    for (int i = 0; i < nDuplicates; i++) {
+        arr[idxs[i]] = missing[i];
+    }
+
+    free(freq);
+    free(idxs);
+    free(missing);
+}
+
 void crossover(int nNodes, int* p1, int* p2, int *offspring[2]) {
-    int splitIdx = rand() % nNodes;
 
     for (int i = 0; i < 2; i++) {
+        int splitIdx = rand() % nNodes;
+
         offspring[i] = malloc(nNodes * sizeof(int));
+
         char firstSlice = rand() % 2;
         
         memcpy(offspring[i], firstSlice ? p1 : p2, nNodes * sizeof(int));
@@ -264,38 +325,7 @@ void crossover(int nNodes, int* p1, int* p2, int *offspring[2]) {
             swapPositions(rand() % nNodes, rand() % nNodes, offspring[i]);
         }
 
-        int *freq = calloc(nNodes, sizeof(int));
-        int nDuplicates = 0;
-
-        for (int j = 0; j < nNodes; j++) {
-            freq[offspring[i][j]]++;
-            if (freq[offspring[i][j]] > 1) {
-                nDuplicates++;
-            }
-        }
-
-        while (nDuplicates > 0) {
-            int aV = -1, bV = -1, dupIdx = -1;
-
-            for (int j = 0; j < nNodes; j++) {
-                if (freq[j] == 0) {
-                    aV = j;
-                } else if (freq[j] > 1) {
-                    bV = j;
-                }
-            }
-
-            for (int j = 0; j < nNodes; j++) {
-                if (offspring[i][j] == bV) {
-                    dupIdx = j;
-                }
-            }
-
-            offspring[i][dupIdx] = aV;
-            nDuplicates--;
-        }
-
-        free(freq);
+        removeDupesInArray(nNodes, offspring[i]);
     }
 }
 
@@ -303,12 +333,12 @@ void weakerSelection(int selected[2], int losers[2]) {
     int rangeLen = POPULATION_SIZE - 2;
     int *range = malloc(rangeLen * sizeof(int));
 
-    int i = 0, j = 0;
-    while (j < rangeLen) {
-        if (i != selected[0] && i != selected[1]) {
-            range[j++] = i;
+    rangeLen = 0;
+    for (int i = 0; i < POPULATION_SIZE; i++) {
+        if (i == selected[0] || i == selected[1]) {
+            continue;
         }
-        i++;
+        range[rangeLen++] = i;
     }
 
     losers[0] = range[rand() % rangeLen];
@@ -325,9 +355,8 @@ int arrayArgMin(int n, int array[]) {
     int idx = 0;
 
     for (int i = 0; i < n; i++) {
-        min = MIN(min, array[i]);
-
-        if (min == array[i]) {
+        if (array[i] < min) {
+            min = array[i];
             idx = i;
         }
     }
@@ -336,7 +365,7 @@ int arrayArgMin(int n, int array[]) {
 }
 
 int main() {
-    srand(time(NULL));
+    srand(time(NULL) ^ getpid());
     int n, e;  
     scanf("%d %d", &n, &e);
 
@@ -348,7 +377,7 @@ int main() {
 
     int *bestInput;
 
-    for (int _ = 0; _ < N_GENERATIONS; _++) {
+    for (int iGen = 0; iGen < N_GENERATIONS; iGen++) {
         int scores[POPULATION_SIZE];
         for (int i = 0; i < POPULATION_SIZE; i++) {
             scores[i] = greedy(n, ht, population[i], NULL);
