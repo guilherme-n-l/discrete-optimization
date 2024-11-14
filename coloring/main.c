@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define POPULATION_SIZE 10
 #define N_GENERATIONS 10
@@ -211,30 +212,35 @@ void getPopulation(int nNodes, int *arr[POPULATION_SIZE]) {
 }
 
 void partitionSelection(int *population[POPULATION_SIZE], int scores[POPULATION_SIZE], int selected[2]) {
-    int collector = 0;
-    for (int i = 0; i < POPULATION_SIZE; i++) {
-        collector += scores[i];
-    }
-
-    int inverseScore[POPULATION_SIZE];
-    for (int i = 0; i < POPULATION_SIZE; i++) {
-        inverseScore[i] = collector - scores[i];
-    }
-
-    collector = 0;
-    for (int i = 0; i < POPULATION_SIZE; i++) {
-        collector += inverseScore[i];
-    }
-
-    for (int i = 0; i < 2; i++) {
-        int drained = rand() % (collector + 1);
-
-        int idx = 0;
-        while (drained > 0) {
-            drained -= inverseScore[idx++];
+    for (int iSelected = 0; iSelected < 2; iSelected++) {
+        float sum = 0;
+        for (int i = 0; i < POPULATION_SIZE; i++) {
+            if (iSelected == 1 && selected[0] == i) {
+                continue;
+            }
+            float score = scores[i] == 0 ? 0.5 : scores[i];
+            sum += (float)1 / (score);
         }
 
-        selected[i] = --idx;
+        float partitions[POPULATION_SIZE];
+        float collector2 = 0;
+        int j = 0;
+        for (int i = 0; i < POPULATION_SIZE; i++) {
+            if (iSelected == 1 && selected[0] == i) {
+                continue;
+            }
+            float score = scores[i] == 0 ? 0.5 : scores[i];
+            partitions[j++] = (((float)1 / score / sum)) + collector2;
+            collector2 += (((float)1 / score) / sum);
+        }
+
+        float chosen = (float)rand()/RAND_MAX;
+        int i = 0;
+        while (chosen >= partitions[i]) {
+            i++;
+        };
+
+        selected[iSelected] = iSelected == 0 || (iSelected == 1 && i < selected[0]) ? i : i + 1;
     }
 }
 
@@ -330,6 +336,7 @@ int arrayArgMin(int n, int array[]) {
 }
 
 int main() {
+    srand(time(NULL));
     int n, e;  
     scanf("%d %d", &n, &e);
 
