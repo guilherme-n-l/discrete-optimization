@@ -3,19 +3,80 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int* solution = NULL;
-int solution_n = 1;
+#define LOCAL_SEARCH_RANGE (int)1e3
+
+int *solution = NULL, *last_solution = NULL;
+int solution_n = INT_MAX;
 
 typedef struct {
     int     id;
     int     n_neighs;
-    int*   neighs;
+    int*    neighs;
 } node_t;
 
 void get_st(uint st_len, int (*st)[2]) {
     for (uint i = 0; i < st_len; i++) {
         scanf("%u %u", &st[i][0], & st[i][1]);
     }
+}
+
+void shuffle_int_array(int arr_len, int* arr) {
+    for (int i = 0; i < arr_len; i++) {
+        int new_idx = rand() % arr_len;
+        int tmp = arr[new_idx];
+        arr[new_idx] = arr[i];
+        arr[i] = arr[new_idx];
+    }
+}
+
+int *malloc_m1(size_t n, size_t __size) {
+    int *arr = malloc(n * __size);
+
+    for (size_t i = 0; i < n; i++) {
+        arr[i] = -1;
+    }
+
+    return arr;
+}
+
+char is_neigh_color(node_t *node_ptr, GHashTable *ht, int color, int* colors) {
+    char found_color = 0;
+
+    for (int j = 0; j < node_ptr->n_neighs; j++) {
+        found_color |= colors[node_ptr->neighs[j]] == color;
+    }
+
+    return found_color;
+}
+
+void greedy(int n, int *arr, GHashTable *ht) {
+    int* colors = malloc_m1(n, sizeof(int));
+    int max_color = INT_MIN;
+
+    for (int i = 0; i < n; i++) {
+        node_t *node_ptr = g_hash_table_lookup(ht, GINT_TO_POINTER(i));
+        if (!node_ptr) {
+            abort();
+        }
+
+        for (int j = 0; j < n; j++) {
+            if (is_neigh_color(node_ptr, ht, j, colors)) {
+                continue;
+            }
+            if (j > max_color) {
+                max_color = j;
+            }
+            colors[i] = j;
+        }
+    }
+
+    if (max_color < solution_n) {
+        solution_n = max_color;
+        solution = colors;
+        return;
+    }
+
+    free(colors);
 }
 
 void insert_nodes(int n_nodes, uint st_len, GHashTable* ht, int (*st)[2]) {
@@ -69,26 +130,6 @@ void free_nodes(int n_nodes, GHashTable *ht) {
     }
 }
 
-char is_neigh_color(node_t *node_ptr, GHashTable *ht, int color, int* colors) {
-    char found_color = 0;
-
-    for (int j = 0; j < node_ptr->n_neighs; j++) {
-        found_color |= colors[node_ptr->neighs[j]] == color;
-    }
-
-    return found_color;
-}
-
-int *malloc_m1(size_t n, size_t __size) {
-    int *arr = malloc(n * __size);
-
-    for (size_t i = 0; i < n; i++) {
-        arr[i] = -1;
-    }
-
-    return arr;
-}
-
 void recursive(int n_colors, int n_nodes, int depth, int* arr, GHashTable* ht) {
     if (depth == n_nodes) {
         solution_n = n_colors;
@@ -133,23 +174,8 @@ void print_int_array(int n, int* arr) {
     }
 }
 
-char has_edge(int n_nodes, GHashTable *ht) {
-    char edge_found = 0;
-    for (int i = 0; i < n_nodes; i++) {
-        node_t *node_ptr = g_hash_table_lookup(ht, GINT_TO_POINTER(i));
-        if (!node_ptr) {
-            continue;
-        }
-        edge_found |= node_ptr->n_neighs > 0;
-
-        if (edge_found) {
-            break;
-        }
-    }
-    return edge_found;
-}
-
 int main() {
+    srand(time(NULL));
     int n;
     uint m;
     scanf("%d %u", &n, &m);
@@ -160,20 +186,35 @@ int main() {
     GHashTable *ht = g_hash_table_new(g_direct_hash, g_direct_equal);
     insert_nodes(n, m, ht, st);
 
-    if (has_edge(n, ht)) {
-        solution_n = 2;
+    free(st);
+
+    for (int i = 0; i < LOCAL_SEARCH_RANGE; i++) {
+        int *sample = malloc(n * sizeof(int));
+        for (int j = 0; j < n; j++) {
+            sample[j] = j;
+        }
+
+        shuffle_int_array(n, sample);
+        greedy(n, sample, ht);
     }
 
-    while (!solution) {
-        recursive(solution_n++, n, 0, NULL, ht);
+    last_solution = solution;
+
+    while (solution) {
+        solution = NULL;
+        recursive(--solution_n, n, 0, NULL, ht);
+
+        if (solution) {
+            last_solution = solution;
+        }
     }
-
-    printf("%d 0\n", solution_n);
-    print_int_array(n, solution);
-
     free(solution);
+
+    printf("%d 0\n", ++solution_n);
+    print_int_array(n, last_solution);
+    free(last_solution);
+
     free_nodes(n, ht);
     g_hash_table_destroy(ht);
-    free(st);
     return 0;
 }
