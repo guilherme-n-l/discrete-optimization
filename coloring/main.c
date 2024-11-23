@@ -2,11 +2,14 @@
 #include <glib-2.0/glib.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define LOCAL_SEARCH_RANGE (int)1e3
+#define TOLERANCE_INTERVAL 600
 
 int *solution = NULL, *last_solution = NULL;
-int solution_n = INT_MAX;
+int solution_n = INT_MAX, last_solution_n = INT_MAX;
+char stopped_by_time = 0;
 
 typedef struct {
     int     id;
@@ -72,7 +75,9 @@ void greedy(int n, int *arr, GHashTable *ht) {
 
     if (max_color < solution_n) {
         solution_n = max_color;
+        last_solution_n = solution_n;
         solution = colors;
+        last_solution = solution;
         return;
     }
 
@@ -130,7 +135,11 @@ void free_nodes(int n_nodes, GHashTable *ht) {
     }
 }
 
-void recursive(int n_colors, int n_nodes, int depth, int* arr, GHashTable* ht) {
+char exceeded_time(time_t ss) {
+    return difftime(time(NULL), ss) > TOLERANCE_INTERVAL;
+}
+
+void recursive(int n_colors, int n_nodes, int depth, int* arr, GHashTable* ht, time_t ss) {
     if (depth == n_nodes) {
         solution_n = n_colors;
         solution = arr;
@@ -145,7 +154,7 @@ void recursive(int n_colors, int n_nodes, int depth, int* arr, GHashTable* ht) {
     if (depth == 0) {
         arr = malloc_m1(n_nodes, sizeof(int));
         arr[0] = 0;
-        recursive(n_colors, n_nodes, depth + 1, arr, ht);
+        recursive(n_colors, n_nodes, depth + 1, arr, ht, ss);
         if (!solution) {
             free(arr);
         }
@@ -157,8 +166,12 @@ void recursive(int n_colors, int n_nodes, int depth, int* arr, GHashTable* ht) {
             continue;
         }
 
+        if ((stopped_by_time |= exceeded_time(ss))) {
+            break;
+        }
+
         arr[depth] = i;
-        recursive(n_colors, n_nodes, depth + 1, arr, ht);
+        recursive(n_colors, n_nodes, depth + 1, arr, ht, ss);
 
         if (solution) {
             return;
@@ -198,19 +211,20 @@ int main() {
         greedy(n, sample, ht);
     }
 
-    last_solution = solution;
+    time_t ss = time(NULL);
 
-    while (solution) {
+    while (solution && !(stopped_by_time |= exceeded_time(ss))) {
         solution = NULL;
-        recursive(--solution_n, n, 0, NULL, ht);
+        recursive(--solution_n, n, 0, NULL, ht, ss);
 
         if (solution) {
             last_solution = solution;
+            last_solution_n = solution_n;
         }
     }
     free(solution);
 
-    printf("%d 0\n", ++solution_n);
+    printf(stopped_by_time ? "%d 0\n" : "%d 1\n", last_solution_n);
     print_int_array(n, last_solution);
     free(last_solution);
 
