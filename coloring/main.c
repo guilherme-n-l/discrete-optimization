@@ -5,9 +5,12 @@
 #include <time.h>
 
 #define LOCAL_SEARCH_RANGE (int)1e3
-#define TOLERANCE_INTERVAL 600
+#define TOLERANCE_INTERVAL 1800
+#define SATUR_DEGREE(A) satur[A]
 
+GHashTable *ht;
 int *solution = NULL, *last_solution = NULL;
+int *satur;
 int solution_n = INT_MAX, last_solution_n = INT_MAX;
 char stopped_by_time = 0;
 
@@ -16,6 +19,12 @@ typedef struct {
     int     n_neighs;
     int*    neighs;
 } node_t;
+
+void print_int_array(int n, int* arr) {
+    for (int i = 0; i < n; i++) {
+        printf(i == (n - 1) ? "%d\n" : "%d ", arr[i]);
+    }
+}
 
 void get_st(uint st_len, int (*st)[2]) {
     for (uint i = 0; i < st_len; i++) {
@@ -42,7 +51,7 @@ int *malloc_m1(size_t n, size_t __size) {
     return arr;
 }
 
-char is_neigh_color(node_t *node_ptr, GHashTable *ht, int color, int* colors) {
+char is_neigh_color(node_t *node_ptr, int color, int* colors) {
     char found_color = 0;
 
     for (int j = 0; j < node_ptr->n_neighs; j++) {
@@ -52,7 +61,7 @@ char is_neigh_color(node_t *node_ptr, GHashTable *ht, int color, int* colors) {
     return found_color;
 }
 
-void greedy(int n, int *arr, GHashTable *ht) {
+void greedy(int n, int *arr) {
     int* colors = malloc_m1(n, sizeof(int));
     int max_color = INT_MIN;
 
@@ -63,7 +72,7 @@ void greedy(int n, int *arr, GHashTable *ht) {
         }
 
         for (int j = 0; j < n; j++) {
-            if (is_neigh_color(node_ptr, ht, j, colors)) {
+            if (is_neigh_color(node_ptr, j, colors)) {
                 continue;
             }
             if (j > max_color) {
@@ -84,7 +93,7 @@ void greedy(int n, int *arr, GHashTable *ht) {
     free(colors);
 }
 
-void insert_nodes(int n_nodes, uint st_len, GHashTable* ht, int (*st)[2]) {
+void insert_nodes(int n_nodes, uint st_len, int (*st)[2]) {
     for (int i = 0; i < n_nodes; i++) {
         node_t *node_ptr = g_malloc(sizeof(node_t));
         node_ptr->id = i;
@@ -123,7 +132,7 @@ void insert_nodes(int n_nodes, uint st_len, GHashTable* ht, int (*st)[2]) {
     }
 }
 
-void free_nodes(int n_nodes, GHashTable *ht) {
+void free_nodes(int n_nodes) {
     for (int i = 0; i < n_nodes; i++) {
         node_t *node_ptr = g_hash_table_lookup(ht, GINT_TO_POINTER(i));
         if (node_ptr) {
@@ -139,30 +148,94 @@ char exceeded_time(time_t ss) {
     return difftime(time(NULL), ss) > TOLERANCE_INTERVAL;
 }
 
-void recursive(int n_colors, int n_nodes, int depth, int* arr, GHashTable* ht, time_t ss) {
+int dsatur_compare(const void *a, const void *b) {
+    int int_a = *(int *)a;
+    int int_b = *(int *)b;
+
+    if (int_a == -1) {
+        return INT_MAX;
+    } else if (int_b == -1) {
+        return INT_MIN;
+    }
+
+    int satur_a = SATUR_DEGREE(int_a);
+    int satur_b = SATUR_DEGREE(int_b);
+
+    return (
+        satur_a != satur_b 
+        ? -(satur_a - satur_b) 
+        : - (
+            ((node_t *)g_hash_table_lookup(ht, GINT_TO_POINTER(int_a)))->n_neighs
+            - ((node_t *)g_hash_table_lookup(ht, GINT_TO_POINTER(int_b)))->n_neighs
+        )
+    );
+}
+
+void get_satur(int order_len, int* arr) {
+    for (int i = 0; i < order_len; i++) {
+        node_t *node_ptr = (node_t *)g_hash_table_lookup(ht, GINT_TO_POINTER(i));
+
+        for (int j = 0; j < node_ptr->n_neighs; j++) {
+            if (arr[node_ptr->neighs[j]] != -1) {
+                satur[i]++;
+            }
+        }
+    }
+}
+
+void get_order(int n_nodes, int *arr, int node_idx, int* order) {
+    int order_len = 0;
+
+    for (int i = 0; i < n_nodes; i++) {
+        if (arr[i] != -1 || i == node_idx) {
+            continue;
+        }
+
+        order[order_len++] = i;
+    }
+
+    satur = calloc(order_len, sizeof(int));
+    get_satur(order_len, arr);
+
+
+    qsort(order, order_len, sizeof(int), dsatur_compare);
+    free(satur);
+}
+
+void recursive(int n_colors, int n_nodes, int depth, int* arr, time_t ss, int node_idx) {
     if (depth == n_nodes) {
         solution_n = n_colors;
         solution = arr;
         return;
     }
 
-    node_t *node_ptr = g_hash_table_lookup(ht, GINT_TO_POINTER(depth));
+    if (depth == 0) {
+        arr = malloc_m1(n_nodes, sizeof(int));
+    }
+
+    int *order = malloc(n_nodes * sizeof(int));
+    get_order(n_nodes, arr, node_idx, order);
+
+    if (depth == 0) {
+        arr[order[0]] = 0;
+        recursive(n_colors, n_nodes, depth + 1, arr, ss, order[1]);
+
+        if (!solution) {
+            free(arr);
+        }
+
+        free(order);
+
+        return;
+    }
+
+    node_t *node_ptr = g_hash_table_lookup(ht, GINT_TO_POINTER(node_idx));
     if (!node_ptr) {
         abort();
     }
 
-    if (depth == 0) {
-        arr = malloc_m1(n_nodes, sizeof(int));
-        arr[0] = 0;
-        recursive(n_colors, n_nodes, depth + 1, arr, ht, ss);
-        if (!solution) {
-            free(arr);
-        }
-        return;
-    }
-
     for (int i = 0; i < n_colors; i++) {
-        if (is_neigh_color(node_ptr, ht, i, arr)) {
+        if (is_neigh_color(node_ptr, i, arr)) {
             continue;
         }
 
@@ -170,21 +243,18 @@ void recursive(int n_colors, int n_nodes, int depth, int* arr, GHashTable* ht, t
             break;
         }
 
-        arr[depth] = i;
-        recursive(n_colors, n_nodes, depth + 1, arr, ht, ss);
+        arr[node_idx] = i;
+        recursive(n_colors, n_nodes, depth + 1, arr, ss, order[0]);
 
         if (solution) {
+            free(order);
             return;
         }
 
-        arr[depth + 1] = -1;
+        arr[order[0]] = -1;
     }
-}
 
-void print_int_array(int n, int* arr) {
-    for (int i = 0; i < n; i++) {
-        printf(i == (n - 1) ? "%d\n" : "%d ", arr[i]);
-    }
+    free(order);
 }
 
 int main() {
@@ -196,8 +266,9 @@ int main() {
     int (*st)[2] = malloc(m * sizeof(*st));
     get_st(m, st);
 
-    GHashTable *ht = g_hash_table_new(g_direct_hash, g_direct_equal);
-    insert_nodes(n, m, ht, st);
+    ht = g_hash_table_new(g_direct_hash, g_direct_equal);
+
+    insert_nodes(n, m, st);
 
     free(st);
 
@@ -208,14 +279,14 @@ int main() {
         }
 
         shuffle_int_array(n, sample);
-        greedy(n, sample, ht);
+        greedy(n, sample);
     }
 
     time_t ss = time(NULL);
 
     while (solution && !(stopped_by_time |= exceeded_time(ss))) {
         solution = NULL;
-        recursive(--solution_n, n, 0, NULL, ht, ss);
+        recursive(--solution_n, n, 0, NULL, ss, -1);
 
         if (solution) {
             last_solution = solution;
@@ -228,7 +299,7 @@ int main() {
     print_int_array(n, last_solution);
     free(last_solution);
 
-    free_nodes(n, ht);
+    free_nodes(n);
     g_hash_table_destroy(ht);
     return 0;
 }
