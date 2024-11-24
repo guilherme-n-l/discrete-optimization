@@ -1,23 +1,21 @@
-#include <limits.h>
 #include <glib-2.0/glib.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
 
 #define LOCAL_SEARCH_RANGE (int)1e3
 #define TOLERANCE_INTERVAL 1800
 #define SATUR_DEGREE(A) satur[A]
+#define HT_GET(A) ((node_t *)g_hash_table_lookup(ht, GINT_TO_POINTER(A)))
+#define HT_ADD(A, B) g_hash_table_insert(ht, GINT_TO_POINTER(A), B)
 
 GHashTable *ht;
-int *solution = NULL, *last_solution = NULL;
-int *satur;
 int solution_n = INT_MAX, last_solution_n = INT_MAX;
+int *solution = NULL, *last_solution = NULL, *satur;
 char stopped_by_time = 0;
 
 typedef struct {
     int     id;
     int     n_neighs;
-    int*    neighs;
+    int     *neighs;
 } node_t;
 
 void print_int_array(int n, int* arr) {
@@ -66,10 +64,7 @@ void greedy(int n, int *arr) {
     int max_color = INT_MIN;
 
     for (int i = 0; i < n; i++) {
-        node_t *node_ptr = g_hash_table_lookup(ht, GINT_TO_POINTER(i));
-        if (!node_ptr) {
-            abort();
-        }
+        node_t *node_ptr = HT_GET(i);
 
         for (int j = 0; j < n; j++) {
             if (is_neigh_color(node_ptr, j, colors)) {
@@ -93,48 +88,50 @@ void greedy(int n, int *arr) {
     free(colors);
 }
 
+int get_n_neighs(int node_idx, uint st_len, int (*st)[2]) {
+    int collector = 0;
+
+    for (uint j = 0; j < st_len; j++) {
+        if (st[j][0] == node_idx || st[j][1] == node_idx) {
+            collector++;
+        }
+    }
+
+    return collector;
+}
+
+void get_neighs(int node_idx, uint st_len, int neighs_len, int (*st)[2], int* neighs) {
+    int n_neighs = 0;
+
+    for (uint i = 0; i < st_len; i++) {
+        char node_jdx;
+        if (!(node_jdx = (!(st[i][0] == node_idx))) || (node_jdx = (st[i][1] == node_idx))) {
+            neighs[n_neighs++] = st[i][!node_jdx];
+        }
+
+        if (n_neighs == neighs_len) {
+            break;
+        }
+    }
+}
+
 void insert_nodes(int n_nodes, uint st_len, int (*st)[2]) {
     for (int i = 0; i < n_nodes; i++) {
         node_t *node_ptr = g_malloc(sizeof(node_t));
         node_ptr->id = i;
 
-        node_ptr->n_neighs = 0;
-        for (uint j = 0; j < st_len; j++) {
-            if (st[j][0] == i) {
-                node_ptr->n_neighs++;
-            } else if (st[j][1] == i) {
-                node_ptr->n_neighs++;
-            }
-        }
+        node_ptr->n_neighs = get_n_neighs(i, st_len, st);
 
-        g_hash_table_insert(ht, GINT_TO_POINTER(i), node_ptr);
-    }
-
-    for (int i = 0; i < n_nodes; i++) {
-        node_t *node_ptr = g_hash_table_lookup(ht, GINT_TO_POINTER(i));
         node_ptr->neighs = malloc(node_ptr->n_neighs * sizeof(int));
+        get_neighs(i, st_len, node_ptr->n_neighs, st, node_ptr->neighs);
 
-        if (node_ptr) {
-            int n_neighs = 0;
-            for (int j = 0; j < st_len; j++) {
-                if (st[j][0] == i) {
-                    node_ptr->neighs[n_neighs++] = st[j][1];
-
-                } else if (st[j][1] == i) {
-                    node_ptr->neighs[n_neighs++] = st[j][0];
-                }
-
-                if (n_neighs == node_ptr->n_neighs) {
-                    break;
-                }
-            }
-        }
+        HT_ADD(i, node_ptr);
     }
 }
 
 void free_nodes(int n_nodes) {
     for (int i = 0; i < n_nodes; i++) {
-        node_t *node_ptr = g_hash_table_lookup(ht, GINT_TO_POINTER(i));
+        node_t *node_ptr = HT_GET(i);
         if (node_ptr) {
             if (node_ptr->neighs) {
                 free(node_ptr->neighs);
@@ -164,16 +161,13 @@ int dsatur_compare(const void *a, const void *b) {
     return (
         satur_a != satur_b 
         ? -(satur_a - satur_b) 
-        : - (
-            ((node_t *)g_hash_table_lookup(ht, GINT_TO_POINTER(int_a)))->n_neighs
-            - ((node_t *)g_hash_table_lookup(ht, GINT_TO_POINTER(int_b)))->n_neighs
-        )
+        : -( HT_GET(int_a)->n_neighs - HT_GET(int_b)->n_neighs)
     );
 }
 
 void get_satur(int order_len, int* arr) {
     for (int i = 0; i < order_len; i++) {
-        node_t *node_ptr = (node_t *)g_hash_table_lookup(ht, GINT_TO_POINTER(i));
+        node_t *node_ptr = HT_GET(i);
 
         for (int j = 0; j < node_ptr->n_neighs; j++) {
             if (arr[node_ptr->neighs[j]] != -1) {
@@ -229,10 +223,7 @@ void recursive(int n_colors, int n_nodes, int depth, int* arr, time_t ss, int no
         return;
     }
 
-    node_t *node_ptr = g_hash_table_lookup(ht, GINT_TO_POINTER(node_idx));
-    if (!node_ptr) {
-        abort();
-    }
+    node_t *node_ptr = HT_GET(node_idx);
 
     for (int i = 0; i < n_colors; i++) {
         if (is_neigh_color(node_ptr, i, arr)) {
