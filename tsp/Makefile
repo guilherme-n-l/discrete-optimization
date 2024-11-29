@@ -1,11 +1,24 @@
 CC = gcc
-CFLAGS = -O2 -g -lm
-LDFLAGS = 
-default: run
+CFLAGS = -Wall -fPIC
+LDFLAGS = -shared
 
-run: main.c
-	$(CC) main.c $(CFLAGS) $(LDFLAGS) -o main
+all: main
+	$(MAKE) clean
 
-.PHONY: clean
+main: main.o libpq.so
+	$(CC) -o main main.o -L. -lpq -O2 -g -lm 
+
+libpq.so: pq.o
+	$(CC) $(LDFLAGS) -o libpq.so pq.o
+
+pq.o: pq.c pq.h
+	$(CC) $(CFLAGS) -o pq.o -c pq.c
+
+main.o: main.c pq.h
+	$(CC) $(CFLAGS) -o main.o -c main.c
+
 clean:
-	rm -f main
+	rm -f pq.o main.o
+
+run:
+	@LD_LIBRARY_PATH=$LD_LIBRARY_PATH:. ./main
