@@ -38,13 +38,13 @@ void print_point(int idx) {
 }
 
 void prim(edge_t *tree) {
-    pq_t *pq = pq_create(n);
+    pq_t *pq = pq_create(n * n);
     pq_insert(pq, (edge_t){.source_id=0, .weight=0});
 
     char *visited = calloc(n, sizeof(char));
 
     double *key = malloc(n * sizeof(double));
-    memset(key, DBL_MAX, n * sizeof(double));
+    for (int i = 0; i < n; i++) key[i] = DBL_MAX;
     key[0] = 0;
 
     while (!pq_is_empty(pq)) {
@@ -59,14 +59,49 @@ void prim(edge_t *tree) {
             if (i == source || visited[i] || key[i] <= dist) continue;
 
             key[i] = dist;
-            tree[i - 1] = (edge_t){.source_id=source, .target_id=i, .weight=DISTANCE(source, i)};
+            tree[i - 1] = (edge_t){.source_id=source, .target_id=i, .weight=dist};
             pq_insert(pq, (edge_t){.source_id=i, .weight=key[i]});
         }
     }
+
     pq_destroy(pq);
     free(visited);
     free(key);
 }
+
+void get_deg(edge_t *edges, int *deg) {
+    for (int i = 0; i < (n - 1); i++) {
+        deg[edges[i].source_id]++;
+        deg[edges[i].target_id]++;
+    }
+}
+
+void perfect_matching(int *odds, int odds_len, edge_t *edges) {
+    char *chosen = calloc(n, sizeof(char));
+
+    for (int i = 0; i < odds_len - 1; i++) {
+        if (chosen[i]) continue;
+
+        double min_weight = DBL_MAX;
+        edge_t *min_edge;
+
+        for (int j = i + 1; j < odds_len; j++) {
+            if (chosen[j]) continue;
+
+            double weight = DISTANCE(odds[i], odds[j]);
+
+            if (weight < min_weight) {
+                min_weight = weight;
+                min_edge = &(edge_t){.source_id=odds[i], .target_id=odds[j], .weight=min_weight};
+            }
+        }
+
+        chosen[min_edge->source_id] = 1, chosen[min_edge->target_id] = 1;
+    }
+
+    free(chosen);
+}
+
 
 int main() {
     (void)scanf("%d", &n);
@@ -75,19 +110,21 @@ int main() {
     points = malloc(n * sizeof(point_t));
     get_points();
 
-    for (int i = 0; i < n; i++) print_point(i);
+    // for (int i = 0; i < n; i++) print_point(i);
 
     edge_t *mst_edges = malloc((n - 1) * sizeof(edge_t));
     prim(mst_edges);
-
-    // for (int i = 0; i < (n - 1); i++) printf("%d -> %d\n", mst_edges[i].source_id, mst_edges[i].target_id);
     
-    int *deg = malloc(n * sizeof(int));
-    for (int i = 0; i < (n - 1); i++) {
-        deg[mst_edges[i].source_id]++;
-        deg[mst_edges[i].target_id]++;
-    }
+    int *deg = calloc(n, sizeof(int)), *odds = malloc(n * sizeof(int)), odds_len =  0;
+    get_deg(mst_edges, deg);
 
+    // for (int i = 0; i < (n - 1); i++) printf("%d -> %d w = %lf\n", mst_edges[i].source_id, mst_edges[i].target_id, mst_edges[i].weight);
+    for (int i = 0; i < n; i++) if (deg[i] & 1) odds[odds_len++] = i;
+
+    edge_t *multigraph = malloc((n - 1 + odds_len / 2) * sizeof(edge_t));
+    perfect_matching(odds, odds_len, multigraph);
+
+    free(multigraph);
     free(deg);
     free(distances);
     free(points);

@@ -22,3 +22,6 @@ clean:
 
 run:
 	@LD_LIBRARY_PATH=$LD_LIBRARY_PATH:. ./main
+
+debug:
+	@LD_LIBRARY_PATH=$LD_LIBRARY_PATH:. gdb --tui ./main
